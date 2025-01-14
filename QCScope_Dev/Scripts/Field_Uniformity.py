@@ -3,7 +3,7 @@ import os
 import sys
 import csv
 import math
-from math import sqrt
+from math import sqrt, floor
 import random
 import array
 
@@ -78,7 +78,7 @@ Settings_Templates_List={
 	"Field_Uniformity.Gaussian_Sigma": 10.0,
 	"Field_Uniformity.Binning_Method": "Iso-Density",
 	"Field_Uniformity.BatchMode": False,
-	"Field_Uniformity.Save_Individual_CSVs": True,
+	"Field_Uniformity.Save_Individual_Files": True,
 	"Field_Uniformity.ProlixMode": True
 	},
 
@@ -434,7 +434,7 @@ def Process_Image(imp, Data_All_Files, Processed_Images_List, Batch_Message):
 			key: value for key, value in Field_Uniformity_Settings_Stored.items()
 			if key not in [
 				"Field_Uniformity.BatchMode",
-				"Field_Uniformity.Save_Individual_CSVs",
+				"Field_Uniformity.Save_Individual_Files",
 				"Field_Uniformity.ProlixMode"
 			]}
 
@@ -442,7 +442,7 @@ def Process_Image(imp, Data_All_Files, Processed_Images_List, Batch_Message):
 			key: value for key, value in Field_Uniformity_User.items()
 			if key not in [
 				"Field_Uniformity.BatchMode",
-				"Field_Uniformity.Save_Individual_CSVs",
+				"Field_Uniformity.Save_Individual_Files",
 				"Field_Uniformity.ProlixMode"
 			]}
 		
@@ -593,14 +593,14 @@ def Display_Processing_Dialog(imp, Dialog_Counter, Test_Processing, Batch_Messag
 			Channel_WavelengthsEM_Source = "Default"
 
 		Processing_Dialog.addStringField("Channel {} Name ({}):".format(Channel, Channel_Names_Source), str(Channel_Name), 6)
-		Processing_Dialog.addNumericField("Wavelength ({}):".format(Channel_WavelengthsEM_Source), int(Channel_WavelengthEM),0, 3, "nm")
+		Processing_Dialog.addNumericField("Em Wavelength ({}):".format(Channel_WavelengthsEM_Source), int(Channel_WavelengthEM),0, 3, "nm")
 
 	# Processing Settings
 	Processing_Dialog.addMessage("=== Processing Settings ===")
 	Processing_Dialog.addCheckbox("Apply Gaussian Blur", Field_Uniformity_Settings_Stored["Field_Uniformity.Gaussian_Blur"])
 	Processing_Dialog.addToSameRow()
 	Processing_Dialog.addCheckbox("Test Processing", Test_Processing)
-	Processing_Dialog.addCheckbox("Save Individual CSVs", Field_Uniformity_Settings_Stored["Field_Uniformity.Save_Individual_CSVs"])
+	Processing_Dialog.addCheckbox("Save Individual Files", Field_Uniformity_Settings_Stored["Field_Uniformity.Save_Individual_Files"])
 	Processing_Dialog.addCheckbox("Batch Mode", Field_Uniformity_Settings_Stored["Field_Uniformity.BatchMode"])
 	Processing_Dialog.addToSameRow()
 	Processing_Dialog.addCheckbox("Prolix Mode", Field_Uniformity_Settings_Stored["Field_Uniformity.ProlixMode"])
@@ -648,7 +648,7 @@ def Display_Processing_Dialog(imp, Dialog_Counter, Test_Processing, Batch_Messag
 		Microscope_Settings_User["Field_Uniformity.Microscope_Channel_WavelengthsEM"] = Channel_WavelengthsEM_User
 		Field_Uniformity_User["Field_Uniformity.Gaussian_Blur"] = Processing_Dialog.getNextBoolean()
 		Test_Processing = Processing_Dialog.getNextBoolean()
-		Field_Uniformity_User["Field_Uniformity.Save_Individual_CSVs"] = Processing_Dialog.getNextBoolean()
+		Field_Uniformity_User["Field_Uniformity.Save_Individual_Files"] = Processing_Dialog.getNextBoolean()
 		Field_Uniformity_User["Field_Uniformity.BatchMode"] = Processing_Dialog.getNextBoolean()
 		Field_Uniformity_User["Field_Uniformity.ProlixMode"] = Processing_Dialog.getNextBoolean()
 		Field_Uniformity_User["Field_Uniformity.Gaussian_Sigma"] = Processing_Dialog.getNextNumber()
@@ -714,7 +714,7 @@ def Measure_Uniformity_All_Ch(imp, Save_File): # Run on all channels.
 	"Gaussian_Sigma",
 	"Binning_Method",
 	"BatchMode",
-	"Save_Individual_CSVs",
+	"Save_Individual_Files",
 	"ProlixMode",
 	"Intensity_Min",
 	"Intensity_Max",
@@ -788,7 +788,7 @@ def Measure_Uniformity_All_Ch(imp, Save_File): # Run on all channels.
 	]
 	
 	Output_Data_CSV_Path = Generate_Unique_Filepath(Output_Dir, Image_Info["Basename"], "Uniformity-Data", ".csv")
-	if Save_File and Field_Uniformity_Settings_Stored["Field_Uniformity.Save_Individual_CSVs"]:
+	if Save_File and Field_Uniformity_Settings_Stored["Field_Uniformity.Save_Individual_Files"]:
 		#with open(Output_Data_CSV_Path, "wb") as CSVFile:
 		with open(Output_Data_CSV_Path, "w") as CSV_File:
 			CSV_Writer = csv.writer(CSV_File, delimiter = ",", lineterminator = "\n")
@@ -846,7 +846,7 @@ def Measure_Uniformity_Single_Channel(imp, Channel, Save_File, Display):
 	"Gaussian_Sigma": Field_Uniformity_Settings_Stored["Field_Uniformity.Gaussian_Sigma"],
 	"Binning_Method": Field_Uniformity_Settings_Stored["Field_Uniformity.Binning_Method"],
 	"BatchMode": Field_Uniformity_Settings_Stored["Field_Uniformity.BatchMode"],
-	"Save_Individual_CSVs": Field_Uniformity_Settings_Stored["Field_Uniformity.Save_Individual_CSVs"],
+	"Save_Individual_Files": Field_Uniformity_Settings_Stored["Field_Uniformity.Save_Individual_Files"],
 	"ProlixMode": Field_Uniformity_Settings_Stored["Field_Uniformity.ProlixMode"],
 	"Intensity_Min": Min,
 	"Intensity_Max": Max,
@@ -881,7 +881,7 @@ def Measure_Uniformity_Single_Channel(imp, Channel, Save_File, Display):
 		Data_Ch["Channel_Name"] = Microscope_Settings_Stored["Field_Uniformity.Microscope_Channel_Names"][Channel-1]
 		Data_Ch["Channel_Wavelength_EM"] = Microscope_Settings_Stored["Field_Uniformity.Microscope_Channel_WavelengthsEM"][Channel-1]
 
-	if Save_File and Field_Uniformity_Settings_Stored["Field_Uniformity.Save_Individual_CSVs"]:
+	if Save_File and Field_Uniformity_Settings_Stored["Field_Uniformity.Save_Individual_Files"]:
 		Output_Image_Path = Generate_Unique_Filepath(Output_Dir, Image_Info["Basename"] + "_Channel-0" + str(Channel), "Binned", ".tif")
 		IJ.saveAs(Duplicated_Ch_imp, "Tiff", Output_Image_Path)
 	if Display:
@@ -1017,15 +1017,22 @@ def Bin_Image_Iso_Intensity(imp, Channel, Display, Nb_Bins=10, Final_Bin_Size=25
 	Intensity_Range = Max - Min
 	
 	# Caculate the Width of the Bins based on the range of intensities
-	Bin_Width = Intensity_Range / Nb_Bins
-	
+	Bin_Width = Intensity_Range / float(Nb_Bins)
+	# ImageJ Macro Equation
+	IJ.run(Duplicated_Ch_imp, "32-bit", "")
+	Equation = "[v = " + str(Final_Bin_Size) + " + floor(((v - " + str(Min) + ") / " + str(Bin_Width) + ")) * " + str(Final_Bin_Size)+"]"
+	IJ.run(Duplicated_Ch_imp, "Macro...", "code=" + Equation)
+	IJ.run(Duplicated_Ch_imp, "Macro...", "code=[if(v > 250) v = 250]");
+	Prolix_Message("Iso Intensity Binnig Equation = "+ str(Equation))
+	#IJ.run(imp, "Math...", "operation=" + str(Equation))
 	# Subtract the Minimum
-	IJ.run(Duplicated_Ch_imp, "Subtract...", "value=" + str(Min))
+	#IJ.run(Duplicated_Ch_imp, "32-bit", "")
+	#IJ.run(Duplicated_Ch_imp, "Subtract...", "value=" + str(Min))
 	# Divide by the Bin Width
-	IJ.run(Duplicated_Ch_imp, "Divide...", "value=" + str(Bin_Width))
+	#IJ.run(Duplicated_Ch_imp, "Divide...", "value=" + str(Bin_Width)
 	# Scale back to the Desired Bin Size
-	IJ.run(Duplicated_Ch_imp, "Multiply...", "value=" + str(Final_Bin_Size))
-	IJ.run(Duplicated_Ch_imp, "Add...", "value=25")
+	#IJ.run(Duplicated_Ch_imp, "Multiply...", "value=" + str(Final_Bin_Size))
+	#IJ.run(Duplicated_Ch_imp, "Add...", "value="+str(Final_Bin_Size))
 	ImageConverter.setDoScaling(False)
 	IJ.run(Duplicated_Ch_imp, "8-bit", "")
 	IJ.run(Duplicated_Ch_imp, "Grays", "");
@@ -1084,7 +1091,12 @@ def Bin_Image_Iso_Intensity(imp, Channel, Display, Nb_Bins=10, Final_Bin_Size=25
 	Duplicated_Ch_imp_Overlay=Overlay()
 	Font_Size = max(10, min(int(min(Width, Height) * 0.03), 50))
 	Font_Settings = Font("Arial", Font.BOLD, Font_Size)
-	Label = TextRoi(int(X_Ref_Pix), int(Y_Ref_Pix), Label_Text, Font_Settings)
+	Prolix_Message("Font_Size = " + str(Font_Size))
+	OffsetX = -1
+	OffsetY = -int(Font_Size/2)
+	Prolix_Message("OffsetX = " + str(OffsetX))
+	Prolix_Message("OffsetY = " + str(OffsetY))
+	Label = TextRoi(int(X_Ref_Pix+OffsetX), int(Y_Ref_Pix+OffsetY), Label_Text, Font_Settings)
 	Label.setColor(Color.BLACK) # Set the font color to black
 	Duplicated_Ch_imp_Overlay.add(Label)
 	Thresholded_Ch_imp.changes = False
@@ -1169,7 +1181,7 @@ def Bin_Image_Iso_Density(imp, Channel, Display, Nb_Bins=10, Final_Bin_Size=25):
 	IJ.run(Duplicated_Ch_imp, "Grays", "");
 	Duplicated_Ch_imp.updateAndDraw()
 
-	Threshold_Value_Lower = Final_Bin_Size * (Nb_Bins-1)
+	Threshold_Value_Lower = Final_Bin_Size * (Nb_Bins)
 	Threshold_Value_Upper = 255
 	Prolix_Message("Threshold_Value_Lower" + str(Threshold_Value_Lower))
 	
@@ -1219,7 +1231,12 @@ def Bin_Image_Iso_Density(imp, Channel, Display, Nb_Bins=10, Final_Bin_Size=25):
 	Duplicated_Ch_imp_Overlay=Overlay()
 	Font_Size = max(10, min(int(min(Width, Height) * 0.03), 50))
 	Font_Settings = Font("Arial", Font.BOLD, Font_Size)
-	Label = TextRoi(int(X_Ref_Pix), int(Y_Ref_Pix), Label_Text, Font_Settings)
+	Prolix_Message("Font_Size = " + str(Font_Size))
+	OffsetX = -1
+	OffsetY = -int(Font_Size/2)
+	Prolix_Message("OffsetX = " + str(OffsetX))
+	Prolix_Message("OffsetY = " + str(OffsetY))
+	Label = TextRoi(int(X_Ref_Pix+OffsetX), int(Y_Ref_Pix+OffsetY), Label_Text, Font_Settings)
 	Label.setColor(Color.BLACK) # Set the font color to black
 	Duplicated_Ch_imp_Overlay.add(Label)
 	Thresholded_Ch_imp.changes = False
@@ -1276,7 +1293,7 @@ with open(Output_Data_CSV_Path, 'r') as Input_File:
 #7.  Gaussian_Sigma
 #8.  Binning_Method
 #9.  BatchMode
-#10. Save_Individual_CSVs
+#10. Save_Individual_Files
 #11. ProlixMode
 #12. Intensity_Min
 #13. Intensity_Max
