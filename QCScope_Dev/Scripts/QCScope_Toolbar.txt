@@ -26,10 +26,8 @@ icon=noicon
 arg=<macro>
 run("Field Uniformity");
 </macro>
-</line>
 
-<line>
-<button>1 line 2
+<button>2 line 1
 label=Ch Alignment
 icon=noicon
 arg=<macro>
@@ -38,14 +36,14 @@ run("Ch Alignment");
 </line>
 
 <line>
-<button>1 line 3
+<button>1 line 2
 label=Toggle Autostart
 icon=noicon
 arg=<macro>
 run("Toggle Autostart");
 </macro>
 
-<button>1 line 4
+<button>2 line 2
 label=Close
 icon=noicon
 arg=<close>

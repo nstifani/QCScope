@@ -29,7 +29,6 @@ from java.io import FileOutputStream, OutputStreamWriter
 from java.nio.charset import StandardCharsets
 
 # -*- coding: utf-8 -*-
-import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
@@ -77,6 +76,7 @@ Settings_Templates_List={
 "Field_Uniformity.Settings_Template": {
 	"Field_Uniformity.Gaussian_Blur": True,
 	"Field_Uniformity.Gaussian_Sigma": 10.0,
+	"Field_Uniformity.Binning_Method": "Iso-Density",
 	"Field_Uniformity.BatchMode": False,
 	"Field_Uniformity.Save_Individual_CSVs": True,
 	"Field_Uniformity.ProlixMode": True
@@ -106,9 +106,9 @@ def Prolix_Message(Message):
 def Initialize_Preferences(Settings_Templates_List, Reset_Preferences):
 	for SettingsGroup in Settings_Templates_List.keys():
 	 	for Setting, Value in Settings_Templates_List[SettingsGroup].items():
-		 if Prefs.get(Setting, None) is None:
-			Save_Preferences(Settings_Templates_List[SettingsGroup])
- 			break
+		 	if Prefs.get(Setting, None) is None:
+				Save_Preferences(Settings_Templates_List[SettingsGroup])
+ 				break
 		if Reset_Preferences:
 			Save_Preferences(Settings_Templates_List[SettingsGroup])
 	return None
@@ -188,8 +188,6 @@ def Select_Folder(Default_Path):
 		IJ.log(Message)
 		JOptionPane.showMessageDialog(None, Message, Plugin_Name+" "+Function_Name, JOptionPane.INFORMATION_MESSAGE)
 		sys.exit(Message)
-		
-		
 	Prolix_Message("Selecting Folder: " + InputDir_Path + ". Done.")
 	return InputDir_Path
 
@@ -374,6 +372,7 @@ def Get_Metadata(imp):
 # Retrurn Processed_Images_List a list of processed images
 
 def Process_Image_List(Image_List): 
+	Prolix_Message("Processing Image List")
 	Processed_Images_List = []
 	Data_All_Files = []
 	
@@ -395,12 +394,14 @@ def Process_Image_List(Image_List):
 		
 		# Process the first image with Process_Image function showing a Dialog
 		if Image == 0:
+			Prolix_Message("Processing Initial Image.")
 			Data_All_Files, Processed_Images_List = Process_Image(imp, Data_All_Files, Processed_Images_List, Batch_Message="") 
 			IJ.log("Success processing " + Image_Name + ".")
 		# For subsequent images, check if batch mode is enabled		
 		else:
 			Field_Uniformity_Settings_Stored = Read_Preferences(Settings_Templates_List["Field_Uniformity.Settings_Template"])
 			if Field_Uniformity_Settings_Stored["Field_Uniformity.BatchMode"]:
+				Prolix_Message("Processing in Batch")
 				Data_All_Files, Processed_Images_List = Process_Image_Batch(imp, Data_All_Files, Processed_Images_List)
 				IJ.log("Success batch processing " + Image_Name + ".")
 			else:
@@ -446,10 +447,10 @@ def Process_Image(imp, Data_All_Files, Processed_Images_List, Batch_Message):
 			]}
 		
 		# All conditions must be fulfilled to proceed
-		if User_Click == "OK" and not Test_Processing and Field_Uniformity_Settings_Stored_Filtered == Field_Uniformity_User_Filtered and Microscope_Settings_User == Microscope_Settings_Stored:
+		if User_Click == "OK" and not Test_Processing and Field_Uniformity_Settings_Stored_Filtered == Field_Uniformity_User_Filtered: #and Microscope_Settings_User == Microscope_Settings_Stored:
 			break
 		elif User_Click == "Cancel":
-			Message = "Processing Image:" + Image_Name + ". User canceled operation.
+			Message = "Processing Image:" + Image_Name + ". User canceled operation."
 			IJ.log(Message)
 			JOptionPane.showMessageDialog(None, Message, Plugin_Name+" "+Function_Name, JOptionPane.INFORMATION_MESSAGE)
 			sys.exit(Message)
@@ -605,6 +606,7 @@ def Display_Processing_Dialog(imp, Dialog_Counter, Test_Processing, Batch_Messag
 	Processing_Dialog.addCheckbox("Prolix Mode", Field_Uniformity_Settings_Stored["Field_Uniformity.ProlixMode"])
 	Sigma_Upper_Limit = round(max(Image_Info["Width"],Image_Info["Height"])/4, -1)
 	Processing_Dialog.addSlider("Gaussian Blur Sigma", 0, Sigma_Upper_Limit, Field_Uniformity_Settings_Stored["Field_Uniformity.Gaussian_Sigma"])
+	Processing_Dialog.addRadioButtonGroup("Binning Method:", ["Iso-Intensity", "Iso-Density"], 1, 2, Field_Uniformity_Settings_Stored["Field_Uniformity.Binning_Method"])
 	# Results from Pre Processing
 	Uniformity_Per_Ch_Str = [str(float(item["Uniformity_Std"])) for item in Data_File]
 	Uniformity_Per_Ch_String = ", ".join(Uniformity_Per_Ch_Str)
@@ -650,10 +652,11 @@ def Display_Processing_Dialog(imp, Dialog_Counter, Test_Processing, Batch_Messag
 		Field_Uniformity_User["Field_Uniformity.BatchMode"] = Processing_Dialog.getNextBoolean()
 		Field_Uniformity_User["Field_Uniformity.ProlixMode"] = Processing_Dialog.getNextBoolean()
 		Field_Uniformity_User["Field_Uniformity.Gaussian_Sigma"] = Processing_Dialog.getNextNumber()
+		Field_Uniformity_User["Field_Uniformity.Binning_Method"] = Processing_Dialog.getNextRadioButton()
 		Save_Preferences(Microscope_Settings_User)
 		Save_Preferences(Field_Uniformity_User)
 
-		Prolix_Message("Updating Image Calibration for: " + Image_Name + "...")
+#		Prolix_Message("Updating Image Calibration for: " + Image_Name + "...")
 #		Image_Calibration = imp.getCalibration()
 #		Image_Calibration.pixelWidth = Pixel_Width_User if isinstance(Pixel_Width_User, (float, int)) else float(1)
 #		Image_Calibration.pixelHeight = Pixel_Height_User if isinstance(Pixel_Height_User, (float, int)) else float(1)
@@ -661,7 +664,7 @@ def Display_Processing_Dialog(imp, Dialog_Counter, Test_Processing, Batch_Messag
 #		Space_Unit_User_Std = Normalize_Space_Unit(Space_Unit_User)
 #		Image_Calibration.setUnit(Space_Unit_User_Std)
 #		imp.setCalibration(Image_Calibration)
-		Prolix_Message("Updating Image Calibration: " + Image_Name + ". Done.")
+#		Prolix_Message("Updating Image Calibration: " + Image_Name + ". Done.")
 		Batch_Message=""
 		Dialog_Counter += 1
 	elif Processing_Dialog.wasCanceled():
@@ -699,21 +702,46 @@ def Measure_Uniformity_All_Ch(imp, Save_File): # Run on all channels.
 	global Data_File_Ordered_Keys
 	
 	
+	
 	Data_File_Ordered_Keys = [
 	"Filename",
 	"Channel_Nb",
 	"Channel_Name",
 	"Channel_Wavelength_EM",
-	"Uniformity_Ratio",
+	"Objective_NA",
+	"Objective_Immersion",
+	"Gaussian_Blur",
+	"Gaussian_Sigma",
+	"Binning_Method",
+	"BatchMode",
+	"Save_Individual_CSVs",
+	"ProlixMode",
+	"Intensity_Min",
+	"Intensity_Max",
+	"Intensity_Mean",
+	"Intensity_Std_Dev",
+	"Intensity_Median",
+	"Intensity_Mode",
+	"Width_Pix",
+	"Height_Pix",
+	"Bit_Depth",
+	"Pixel_Width",
+	"Pixel_Height",
+	"Pixel_Depth",
+	"Space_Unit",
+	"Space_Unit_Std",
+	"Calibration_Status",
+	"Std_Dev",
 	"Uniformity_Std",
 	"Uniformity_Percentile",
 	"CV",
-	"Width_Pix",
-	"Height_Pix",
+	"Uniformity_CV",
 	"X_Center_Pix",
 	"Y_Center_Pix",
 	"X_Ref_Pix",
 	"Y_Ref_Pix",
+	"X_Ref",
+	"Y_Ref",
 	"Centering_Accuracy"
 	]
 	
@@ -722,19 +750,43 @@ def Measure_Uniformity_All_Ch(imp, Save_File): # Run on all channels.
 	"Channel Nb",
 	"Channel Name",
 	"Channel Wavelength EM (nm)",
-	"Uniformity Ratio",
-	"Uniformity Std (%)",
-	"Uniformity Percentile",
-	"CV",
-	"Width (pixels)",
-	"Height (pixels)",
+	"Objective NA",
+	"Objective Immersion Media",
+	"Gaussian Blur Applied",
+	"Gaussian Sigma",
+	"Binning Method",
+	"Batch Mode",
+	"Save Individual CSVs",
+	"Prolix Mode",
+	"Image Min Intensity",
+	"Image Max Intensity",
+	"Image Mean Intensity",
+	"Image Standard Deviation Intensity",
+	"Image Median Intensity",
+	"Image Mode Intensity",
+	"Image Width (pixels)",
+	"Image Height (pixels)",
+	"Image Bit Depth",
+	"Pixel Width (" + Image_Info["Space_Unit_Std"] + ")",
+	"Pixel Height (" + Image_Info["Space_Unit_Std"] + ")",
+	"Pixel Depth (" + Image_Info["Space_Unit_Std"] + ")",
+	"Space Unit",
+	"Space Unit Standard",
+	"Calibration Status",",
+	"Standard Deviation (GV)",
+	"Uniformity Standard (%)",
+	"Uniformity Percentile (%)",
+	"Coefficient of Variation",
+	"Uniformity CV based",
 	"X Center (pixels)",
 	"Y Center (pixels)",
 	"X Ref (pixels)",
 	"Y Ref (pixels)",
+	"X Ref (" + Image_Info["Space_Unit_Std"] + ")",
+	"Y Ref (" + Image_Info["Space_Unit_Std"] + ")",
 	"Centering Accuracy (%)"
 	]
-
+	
 	Output_Data_CSV_Path = Generate_Unique_Filepath(Output_Dir, Image_Info["Basename"], "Uniformity-Data", ".csv")
 	if Save_File and Field_Uniformity_Settings_Stored["Field_Uniformity.Save_Individual_CSVs"]:
 		#with open(Output_Data_CSV_Path, "wb") as CSVFile:
@@ -768,35 +820,67 @@ def Measure_Uniformity_Single_Channel(imp, Channel, Save_File, Display):
 
 
 	ip, Min, Max, Mean, Std_Dev, Median, Hist, Mode, nPixels = Get_Image_Statistics(imp)
-	Uniformity_Ratio = round(Calculate_Uniformity_Ratio(imp),1)
-	Uniformity_Std = round(Calculate_Uniformity_Std(imp),1)
-	Uniformity_Percentile = round(Calculate_Uniformity_Percentile(imp, Percentile=0.05),1)
-	CV = Calculate_CV(imp)
-
-	Duplicated_Ch_imp, X_Ref, Y_Ref, X_Ref_Pix, Y_Ref_Pix = Bin_Image(imp, Channel, Display, Nb_Bins = 10, Final_Bin_Size = 25)
-		
-	Centering_Accuracy= round(Calculate_Centering_Accuracy(imp, X_Ref_Pix, Y_Ref_Pix),1)
 	
-	X_Center_Scaled = (imp.getWidth() /2 )* Image_Info["Pixel_Width"]
-	Y_Center_Scaled = (imp.getHeight() /2 )* Image_Info["Pixel_Height"]
+	Uniformity_Std = round(Calculate_Uniformity_Std(imp), 1)
+	Uniformity_Percentile = round(Calculate_Uniformity_Percentile(imp, Percentile=0.05), 1)
+	CV = Calculate_CV(imp)
+	if CV <= 1:
+		Uniformity_CV = round(Calculate_Uniformity_CV(CV), 1)
+	else:
+		Uniformity_CV = "Too high"
+	
+	if Field_Uniformity_Settings_Stored["Field_Uniformity.Binning_Method"] == "Iso-Intensity":
+		Duplicated_Ch_imp, X_Ref, Y_Ref, X_Ref_Pix, Y_Ref_Pix = Bin_Image_Iso_Intensity(imp, Channel, Display, Nb_Bins = 10, Final_Bin_Size = 25)
+	else:
+		Duplicated_Ch_imp, X_Ref, Y_Ref, X_Ref_Pix, Y_Ref_Pix = Bin_Image_Iso_Density(imp, Channel, Display, Nb_Bins = 10, Final_Bin_Size = 25)
+	
+	
+	Centering_Accuracy = round(Calculate_Centering_Accuracy(imp, X_Ref_Pix, Y_Ref_Pix),1)
 	
 	Data_Ch={
 	"Filename": Image_Info["Filename"],
 	"Channel_Nb": Channel,
-	"Channel_Name": Microscope_Settings_Stored["Field_Uniformity.Microscope_Channel_Names"][Channel-1],
-	"Channel_Wavelength_EM": Microscope_Settings_Stored["Field_Uniformity.Microscope_Channel_WavelengthsEM"][Channel-1],
-	"Uniformity_Ratio": Uniformity_Ratio,
+	"Objective_NA": Microscope_Settings_Stored["Field_Uniformity.Microscope_Objective_NA"],
+	"Objective_Immersion":	Microscope_Settings_Stored["Field_Uniformity.Microscope_Objective_Immersion"],
+	"Gaussian_Blur": Field_Uniformity_Settings_Stored["Field_Uniformity.Gaussian_Blur"],
+	"Gaussian_Sigma": Field_Uniformity_Settings_Stored["Field_Uniformity.Gaussian_Sigma"],
+	"Binning_Method": Field_Uniformity_Settings_Stored["Field_Uniformity.Binning_Method"],
+	"BatchMode": Field_Uniformity_Settings_Stored["Field_Uniformity.BatchMode"],
+	"Save_Individual_CSVs": Field_Uniformity_Settings_Stored["Field_Uniformity.Save_Individual_CSVs"],
+	"ProlixMode": Field_Uniformity_Settings_Stored["Field_Uniformity.ProlixMode"],
+	"Intensity_Min": Min,
+	"Intensity_Max": Max,
+	"Intensity_Mean": Mean,
+	"Intensity_Std_Dev": Std_Dev,
+	"Intensity_Median": Median,
+	"Intensity_Mode": Mode,
+	"Width_Pix": Image_Info["Width"],
+	"Height_Pix": Image_Info["Height"],
+	"Bit_Depth": Image_Info["Bit_Depth"],
+	"Pixel_Width": Image_Info["Pixel_Width"],
+	"Pixel_Height": Image_Info["Pixel_Height"],
+	"Pixel_Depth": Image_Info["Pixel_Depth"],
+	"Space_Unit": Image_Info["Space_Unit"],
+	"Space_Unit_Std": Image_Info["Space_Unit_Std"],
+	"Calibration_Status": Image_Info["Calibration_Status"],
+	"Std_Dev": Std_Dev,
 	"Uniformity_Std": Uniformity_Std,
 	"Uniformity_Percentile": Uniformity_Percentile,
 	"CV": CV,
-	"Width_Pix": Image_Info["Width"],
-	"Height_Pix": Image_Info["Height"],
+	"Uniformity_CV": Uniformity_CV,
 	"X_Center_Pix": Image_Info["Width"]/2,
 	"Y_Center_Pix": Image_Info["Height"]/2,
 	"X_Ref_Pix": X_Ref_Pix,
-	"Y_Ref_Pix": Y_Ref_Pix,	
+	"Y_Ref_Pix": Y_Ref_Pix,
+	"X_Ref": X_Ref,
+	"Y_Ref": Y_Ref,
 	"Centering_Accuracy": Centering_Accuracy,
 	}
+	
+	if Save_File:
+		Data_Ch["Channel_Name"] = Microscope_Settings_Stored["Field_Uniformity.Microscope_Channel_Names"][Channel-1]
+		Data_Ch["Channel_Wavelength_EM"] = Microscope_Settings_Stored["Field_Uniformity.Microscope_Channel_WavelengthsEM"][Channel-1]
+
 	if Save_File and Field_Uniformity_Settings_Stored["Field_Uniformity.Save_Individual_CSVs"]:
 		Output_Image_Path = Generate_Unique_Filepath(Output_Dir, Image_Info["Basename"] + "_Channel-0" + str(Channel), "Binned", ".tif")
 		IJ.saveAs(Duplicated_Ch_imp, "Tiff", Output_Image_Path)
@@ -826,17 +910,6 @@ def Get_Image_Statistics(imp):
 	Prolix_Message("Getting Image Statistics. Done.")
 	return ip, Min, Max, Mean, Std_Dev, Median, Hist, Mode, nPixels
 	
-# Calculate the Uniformity Ratio
-def Calculate_Uniformity_Ratio(imp, Percentile=0.05):
-	Prolix_Message("Calculating Uniformity Ratio...")
-	ip, Min, Max, Mean, Std_Dev, Median, Hist, Mode, nPixels = Get_Image_Statistics(imp)
-	Hist = list(Hist)
-	Cumulative_Hist = [sum(Hist[:i+1]) for i in range(len(Hist))]
-	Lower_Percentile_Intensity = Min + next(i for i, value in enumerate(Cumulative_Hist) if value >= Percentile * nPixels)
-	Upper_Percentile_Intensity = Min + next(i for i, value in enumerate(Cumulative_Hist) if value >= (1 - Percentile) * nPixels)
-	Uniformity_Ratio = Lower_Percentile_Intensity / Upper_Percentile_Intensity
-	Prolix_Message("Calculating Uniformity Ratio. Done. Uniformity Ratio = " + str(Uniformity_Ratio))
-	return Uniformity_Ratio
 
 # Calculate the Uniformity the same way than MetroloJ QC
 def Calculate_Uniformity_Std(imp):
@@ -855,12 +928,10 @@ def Calculate_Uniformity_Percentile(imp, Percentile = 0.05):
 	Sorted_Pixels = sorted(Pixels)
 	p5_Index = int(Percentile * nPixels)
 	p95_Index = int((1-Percentile) * nPixels)
-	Pixels_Low = Sorted_Pixels[:p5_Index]
-	Pixels_High = Sorted_Pixels[p95_Index:]
-	Avg_Pix_Int_Low = float(sum(Pixels_Low) / len(Pixels_Low))
-	Avg_Pix_Int_High = float(sum(Pixels_High) / len(Pixels_High))
-	Uniformity_Percentile = round(100 * (Avg_Pix_Int_Low / Avg_Pix_Int_High), 0)
-	Prolix_Message("Calculating Uniformity " + str(Percentile*100) + "% - " + str(100-(Percentile*100)) + "% Percentile. Done. Uniformity Percentile = " + str(Uniformity_Percentile))
+	Pixel_Low = Sorted_Pixels[p5_Index]
+	Pixel_High = Sorted_Pixels[p95_Index]
+	Uniformity_Percentile = (1 - ( float(Pixel_High - Pixel_Low) / float(Pixel_High + Pixel_Low) )) * 100
+	Prolix_Message("Calculating Uniformity " + str(Percentile * 100) + "% - " + str(100 - (Percentile * 100)) + "% Percentile. Done. Uniformity Percentile = " + str(Uniformity_Percentile))
 	return Uniformity_Percentile
 
 # Calculate the Coefficient of Variation
@@ -868,13 +939,17 @@ def Calculate_CV(imp):
 	Prolix_Message("Calculating Coefficient of Variation...")
 	ip, Min, Max, Mean, Std_Dev, Median, Hist, Mode, nPixels = Get_Image_Statistics(imp)
 	if Mean != 0:
-		CV = Std_Dev / Mean
+		CV = (Std_Dev / Mean)
 	else:
 		CV = 0
 	Prolix_Message("Calculating Coefficient of Variation. Done. CV = " + str(CV))
 	return CV
 
-	
+# Calculate the Uniformity from the CV
+def Calculate_Uniformity_CV(CV):
+	Uniformity_CV = (1 - CV) * 100 # CV range from 0 to infinity but in this context it is extremely unlikely to be above 1.
+	return Uniformity_CV
+
 # Calculate the Centering Accuracy Require the X and Y coordinate of the Reference ROI
 def Calculate_Centering_Accuracy(imp, X_Ref_Pix, Y_Ref_Pix):
 	Prolix_Message("Calculating Centering Accuracy...")
@@ -921,9 +996,9 @@ def Apply_Gaussian_Blur(imp, Display):
 
 
 # This is the core function of the Uniformity_Single_Channel
-def Bin_Image(imp, Channel, Display, Nb_Bins=10, Final_Bin_Size=25):
+def Bin_Image_Iso_Intensity(imp, Channel, Display, Nb_Bins=10, Final_Bin_Size=25):
 	Image_Info = Get_Image_Info(imp) # Can only be used on an image written of disk
-	Prolix_Message("Binning Image " + str(Image_Info["Filename"]) + "...")
+	Prolix_Message("Binning Image with Iso-Intensity" + str(Image_Info["Filename"]) + "...")
 	Height = Image_Info["Height"]
 	Width = Image_Info["Width"]
 	imp.setDisplayMode(IJ.COLOR)
@@ -950,6 +1025,7 @@ def Bin_Image(imp, Channel, Display, Nb_Bins=10, Final_Bin_Size=25):
 	IJ.run(Duplicated_Ch_imp, "Divide...", "value=" + str(Bin_Width))
 	# Scale back to the Desired Bin Size
 	IJ.run(Duplicated_Ch_imp, "Multiply...", "value=" + str(Final_Bin_Size))
+	IJ.run(Duplicated_Ch_imp, "Add...", "value=25")
 	ImageConverter.setDoScaling(False)
 	IJ.run(Duplicated_Ch_imp, "8-bit", "")
 	IJ.run(Duplicated_Ch_imp, "Grays", "");
@@ -1017,10 +1093,143 @@ def Bin_Image(imp, Channel, Display, Nb_Bins=10, Final_Bin_Size=25):
 	if Display:
 		Zoom.set(Duplicated_Ch_imp, 0.5);
 		Duplicated_Ch_imp.show()
+	Prolix_Message("Binning Image with Iso-Intensity" + str(Image_Info["Filename"]) + ". Done.")
 	return Duplicated_Ch_imp, X_Ref, Y_Ref, X_Ref_Pix, Y_Ref_Pix
 
 
 
+def Bin_Image_Iso_Density(imp, Channel, Display, Nb_Bins=10, Final_Bin_Size=25):
+	Image_Info = Get_Image_Info(imp) # Can only be used on an image written of disk
+	Prolix_Message("Binning Image with Iso-Density " + str(Image_Info["Filename"]) + "...")
+	Height = Image_Info["Height"]
+	Width = Image_Info["Width"]
+	imp.setDisplayMode(IJ.COLOR)
+	imp.setC(Channel) # Channel starts from 1 to Image_Info[Nb_Channels]
+	imp.updateAndDraw()
+	
+	Field_Uniformity_Settings_Stored = Read_Preferences(Settings_Templates_List["Field_Uniformity.Settings_Template"])
+	
+	Duplicated_Ch_imp = Image_Ch_Duplicator(imp, Channel, Display)
+	
+	if Field_Uniformity_Settings_Stored["Field_Uniformity.Gaussian_Blur"]:
+		Apply_Gaussian_Blur(Duplicated_Ch_imp, Display)
+	
+	ip, Min, Max, Mean, Std_Dev, Median, Hist, Mode, nPixels = Get_Image_Statistics(Duplicated_Ch_imp)
+	Duplicated_Ch_IP = Duplicated_Ch_imp.getProcessor()
+	# Get the pixel data and sort it
+	Pixels = Duplicated_Ch_IP.getPixels()
+	Sorted_Pixels = sorted(Pixels)
+	Nb_Pixel_Per_Bin = int(nPixels / Nb_Bins)
+	Prolix_Message("Nb_Pixel_Per_Bin" + str(Nb_Pixel_Per_Bin))
+
+	Lower_Thresholds=[]
+	Upper_Thresholds=[]
+	for i in range(0, Nb_Bins):
+		Pixel_Value_Low = Sorted_Pixels[int(i * Nb_Pixel_Per_Bin)] 
+		if i == Nb_Bins - 1:
+			Pixel_Value_High = Max
+		else:
+			Pixel_Value_High = Sorted_Pixels[int((i+1) * Nb_Pixel_Per_Bin)]
+		Lower_Thresholds.append(Pixel_Value_Low)
+		Upper_Thresholds.append(Pixel_Value_High)
+		Prolix_Message("Pixel_Value_Low" + str(Pixel_Value_Low))
+		Prolix_Message("Pixel_Value_High" + str(Pixel_Value_High))
+
+	Roi_Manager = RoiManager.getInstance()
+	if Roi_Manager is None:
+		Roi_Manager = RoiManager()
+	Roi_Manager.reset()
+		
+	# Loop through each bin
+	for y in range(0, len(Lower_Thresholds)):
+		Lower_Threshold_Value = Lower_Thresholds[y]
+		Upper_Threshold_Value = Upper_Thresholds[y]
+		Duplicated_Ch_IP.setThreshold(Lower_Threshold_Value, Upper_Threshold_Value)
+		IJ.run(Duplicated_Ch_imp, "Create Selection", "")
+		Roi_Manager.addRoi(Duplicated_Ch_imp.getRoi())
+		Duplicated_Ch_imp.setRoi(None)
+		
+	IJ.run(Duplicated_Ch_imp, "8-bit", "")
+	IJ.run(Duplicated_Ch_imp, "Grays", "");
+	Duplicated_Ch_IP=Duplicated_Ch_imp.getProcessor()
+	RM = RoiManager.getRoiManager()
+		
+	for Roi_Index in range(RM.getCount()):
+		Roi = RM.getRoi(Roi_Index)
+		New_Intensity = int ((Roi_Index + 1) * Final_Bin_Size)
+		Duplicated_Ch_IP.setValue(New_Intensity)
+		Duplicated_Ch_IP.fill(Roi);
+		Duplicated_Ch_imp.setRoi(None)
+		Prolix_Message("Roi_Index" + str(Roi_Index))
+		Prolix_Message("New_Intensity" + str(New_Intensity))
+	
+	Roi_Manager.reset()
+	Duplicated_Ch_imp.setRoi(None)
+	IJ.run(Duplicated_Ch_imp, "8-bit", "");
+	IJ.run(Duplicated_Ch_imp, "Grays", "");
+	Duplicated_Ch_imp.updateAndDraw()
+
+	Threshold_Value_Lower = Final_Bin_Size * (Nb_Bins-1)
+	Threshold_Value_Upper = 255
+	Prolix_Message("Threshold_Value_Lower" + str(Threshold_Value_Lower))
+	
+	# Duplicate the image processor to threshold on the last bin
+	Duplicated_Ch_imp.setRoi(None)
+	Thresholded_Ch_imp = Duplicated_Ch_imp.duplicate()
+	IJ.setThreshold(Thresholded_Ch_imp, Threshold_Value_Lower, Threshold_Value_Upper)
+	IJ.run(Thresholded_Ch_imp, "Convert to Mask", "")
+	IJ.run(Thresholded_Ch_imp, "Analyze Particles...", "size=0-Infinity clear add")
+	Result_Table = ResultsTable.getResultsTable()
+	# Parse the result to get the largest particle
+	Max_Area = 0
+	Max_Area_Index = -1
+	for i in range(Result_Table.getCounter()):
+		Area = Result_Table.getValue("Area", i)
+		if Area > Max_Area:
+			Max_Area = Area
+			Max_Area_Index = i
+	Prolix_Message("Max_Area" + str(Max_Area))
+	Prolix_Message("Max_Area_Index" + str(Max_Area_Index))
+	
+	if Max_Area_Index != -1:
+		Roi_Manager = RoiManager.getInstance()
+		Roi_Last_Bin = Roi_Manager.getRoi(Max_Area_Index)
+		Duplicated_Ch_imp.setRoi(Roi_Last_Bin) #Or using the Original Image
+		Roi_Statistics = Duplicated_Ch_imp.getStatistics(ImageStatistics.CENTROID)
+		X_Ref = Roi_Statistics.xCentroid
+		Y_Ref = Roi_Statistics.yCentroid
+		Duplicated_Ch_imp.killRoi()
+		Roi_Manager.reset()
+		Label_Text = "< Center here"
+	else:
+		X_Ref, Y_Ref = Width/2, Height/2
+		Label_Text = "Center not found"
+	Prolix_Message("Label_Text" + str(Label_Text))
+	
+	
+	if Image_Info["Space_Unit_Std"] != "pixels":
+		X_Ref_Pix = X_Ref / Image_Info["Pixel_Width"]
+		Y_Ref_Pix = Y_Ref / Image_Info["Pixel_Height"]
+	else:
+		X_Ref_Pix = X_Ref 
+		Y_Ref_Pix = Y_Ref
+	Prolix_Message("X_Ref_Pix" + str(X_Ref_Pix))
+	Prolix_Message("Y_Ref_Pix" + str(Y_Ref_Pix))
+	
+	Duplicated_Ch_imp_Overlay=Overlay()
+	Font_Size = max(10, min(int(min(Width, Height) * 0.03), 50))
+	Font_Settings = Font("Arial", Font.BOLD, Font_Size)
+	Label = TextRoi(int(X_Ref_Pix), int(Y_Ref_Pix), Label_Text, Font_Settings)
+	Label.setColor(Color.BLACK) # Set the font color to black
+	Duplicated_Ch_imp_Overlay.add(Label)
+	Thresholded_Ch_imp.changes = False
+	Thresholded_Ch_imp.close()
+	Duplicated_Ch_imp.setOverlay(Duplicated_Ch_imp_Overlay)
+	if Display:
+		Zoom.set(Duplicated_Ch_imp, 0.5);
+		Duplicated_Ch_imp.show()
+	Prolix_Message("Binning Image with Iso-Density " + str(Image_Info["Filename"]) + ". Done.")
+	return Duplicated_Ch_imp, X_Ref, Y_Ref, X_Ref_Pix, Y_Ref_Pix
 
 
 # We are done with functions... Getting to work now.
@@ -1036,8 +1245,8 @@ Image_List = Get_Images()
 # Process the List of Images
 Data_All_Files, Processed_Images_List = Process_Image_List(Image_List) 
 
-Output_Data_CSV_Path = Generate_Unique_Filepath(Output_Dir, "Uniformity", "Merged", ".csv")
-
+# Saving all data
+Output_Data_CSV_Path = Generate_Unique_Filepath(Output_Dir, Function_Name + "_All-Data", "Merged", ".csv")
 with open(Output_Data_CSV_Path, "w") as Merged_Output_File:
 	CSV_Writer = csv.writer(Merged_Output_File, delimiter = ",", lineterminator = "\n")
 	CSV_Writer.writerow(Data_File_Header) # Write the header
@@ -1052,9 +1261,61 @@ with open(Output_Data_CSV_Path, "w") as Merged_Output_File:
 # Data_File is a list of dictionaries
 # Data_All_Files is a list of a list of dictionnaries
 
-				
+# Saving Essential Data 
+Output_Simple_Data_CSV_Path = Generate_Unique_Filepath(Output_Dir, Function_Name + "_Essential-Data", "Merged", ".csv")
+with open(Output_Data_CSV_Path, 'r') as Input_File:
+	Reader = csv.reader(Input_File, delimiter=',', lineterminator='\n')
+	Header = next(Reader)
+#0.  Filename
+#1.  Channel_Nb
+#2.  Channel_Name
+#3.  Channel_Wavelength_EM
+#4.  Objective_NA
+#5.  Objective_Immersion
+#6.  Gaussian_Blur
+#7.  Gaussian_Sigma
+#8.  Binning_Method
+#9.  BatchMode
+#10. Save_Individual_CSVs
+#11. ProlixMode
+#12. Intensity_Min
+#13. Intensity_Max
+#14. Intensity_Mean
+#15. Intensity_Std_Dev
+#16. Intensity_Median
+#17. Intensity_Mode
+#18. Width_Pix
+#19. Height_Pix
+#20. Bit_Depth
+#21. Pixel_Width
+#22. Pixel_Height
+#23. Pixel_Depth
+#24. Space_Unit
+#25. Space_Unit_Std
+#26. Calibration_Status
+#27. Std_Dev
+#28. Uniformity_Std
+#29. Uniformity_Percentile
+#30. CV
+#31. Uniformity_CV
+#32. X_Center_Pix
+#33. Y_Center_Pix
+#34. X_Ref_Pix
+#35. Y_Ref_Pix
+#36. X_Ref
+#37. Y_Ref
+#38. Centering_Accuracy
+	Selected_Columns = list(range(0, 3)) + [12, 13, 14, 15, 28,29,30,31,32,33,34,35,38]
+	Selected_Header = [Header[i] for i in Selected_Columns]
+	with open(Output_Simple_Data_CSV_Path, 'w') as Output_File:
+		CSV_Writer = csv.writer(Output_File, delimiter = ',', lineterminator = '\n')
+		CSV_Writer.writerow(Selected_Header) # Write the header
+		for Row in Reader: # Get the data from the Saved Full data CSV File
+			Selected_Row = [Row[i] for i in Selected_Columns]
+			CSV_Writer.writerow(Selected_Row)
+	
 # Log the success message indicating the number of processed images
-Message = "Uniformity has been completed.\n" + str(len(Processed_Images_List)) + " images have been processed successfully."
+Message = Function_Name + " has been completed.\n" + str(len(Processed_Images_List)) + " images have been processed successfully."
 Message = Message + "\n" + "Files are saved in " + str(Output_Dir)
 IJ.log(Message)
 JOptionPane.showMessageDialog(None, Message,Plugin_Name+" "+Function_Name, JOptionPane.INFORMATION_MESSAGE)
