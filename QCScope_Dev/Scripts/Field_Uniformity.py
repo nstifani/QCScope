@@ -614,6 +614,7 @@ def Display_Processing_Dialog(imp, Dialog_Counter, Test_Processing, Batch_Messag
 	Sigma_Upper_Limit = round(max(Image_Info["Width"],Image_Info["Height"])/4, -1)
 	Processing_Dialog.addSlider("Gaussian Blur Sigma", 0, Sigma_Upper_Limit, Field_Uniformity_Settings_Stored["Field_Uniformity.Gaussian_Sigma"])
 	Processing_Dialog.addRadioButtonGroup("Binning Method:", ["Iso-Intensity", "Iso-Density"], 1, 2, Field_Uniformity_Settings_Stored["Field_Uniformity.Binning_Method"])
+	Processing_Dialog.addSlider("Selected Channel", 1, Image_Info["Nb_Channels"], Current_Channel)
 	# Results from Pre Processing
 	Uniformity_Per_Ch_Str = [str(float(item["Uniformity_Std"])) for item in Data_File]
 	Uniformity_Per_Ch_String = ", ".join(Uniformity_Per_Ch_Str)
@@ -661,6 +662,11 @@ def Display_Processing_Dialog(imp, Dialog_Counter, Test_Processing, Batch_Messag
 		Field_Uniformity_User["Field_Uniformity.ProlixMode"] = Processing_Dialog.getNextBoolean()
 		Field_Uniformity_User["Field_Uniformity.Gaussian_Sigma"] = Processing_Dialog.getNextNumber()
 		Field_Uniformity_User["Field_Uniformity.Binning_Method"] = Processing_Dialog.getNextRadioButton()
+		Selected_Channel = int(Processing_Dialog.getNextNumber())
+		if Selected_Channel != int(Current_Channel):
+			imp.setC(Selected_Channel)
+			imp.updateAndDraw()
+			Test_Processing = True
 		Save_Preferences(Microscope_Settings_User)
 		Save_Preferences(Field_Uniformity_User)
 
@@ -716,6 +722,7 @@ def Measure_Uniformity_All_Ch(imp, Save_File): # Run on all channels.
 	"Channel_Nb",
 	"Channel_Name",
 	"Channel_Wavelength_EM",
+	"Objective_Mag",
 	"Objective_NA",
 	"Objective_Immersion",
 	"Gaussian_Blur",
@@ -758,6 +765,7 @@ def Measure_Uniformity_All_Ch(imp, Save_File): # Run on all channels.
 	"Channel Nb",
 	"Channel Name",
 	"Channel Wavelength EM (nm)",
+	"Objective Magnification",
 	"Objective NA",
 	"Objective Immersion Media",
 	"Gaussian Blur Applied",
@@ -848,6 +856,7 @@ def Measure_Uniformity_Single_Channel(imp, Channel, Save_File, Display):
 	Data_Ch={
 	"Filename": Image_Info["Filename"],
 	"Channel_Nb": Channel,
+	"Objective_Mag": Microscope_Settings_Stored["Field_Uniformity.Microscope_Objective_Mag"],
 	"Objective_NA": Microscope_Settings_Stored["Field_Uniformity.Microscope_Objective_NA"],
 	"Objective_Immersion":	Microscope_Settings_Stored["Field_Uniformity.Microscope_Objective_Immersion"],
 	"Gaussian_Blur": Field_Uniformity_Settings_Stored["Field_Uniformity.Gaussian_Blur"],
@@ -858,8 +867,8 @@ def Measure_Uniformity_Single_Channel(imp, Channel, Save_File, Display):
 	"ProlixMode": Field_Uniformity_Settings_Stored["Field_Uniformity.ProlixMode"],
 	"Intensity_Min": Min,
 	"Intensity_Max": Max,
-	"Intensity_Mean": Mean,
-	"Intensity_Std_Dev": Std_Dev,
+	"Intensity_Mean": round(Mean,1),
+	"Intensity_Std_Dev": round(Std_Dev,1),
 	"Intensity_Median": Median,
 	"Intensity_Mode": Mode,
 	"Width_Pix": Image_Info["Width"],
@@ -871,17 +880,17 @@ def Measure_Uniformity_Single_Channel(imp, Channel, Save_File, Display):
 	"Space_Unit": Image_Info["Space_Unit"],
 	"Space_Unit_Std": Image_Info["Space_Unit_Std"],
 	"Calibration_Status": Image_Info["Calibration_Status"],
-	"Std_Dev": Std_Dev,
+	"Std_Dev": round(Std_Dev, 1),
 	"Uniformity_Std": Uniformity_Std,
 	"Uniformity_Percentile": Uniformity_Percentile,
-	"CV": CV,
+	"CV": round(CV,4),
 	"Uniformity_CV": Uniformity_CV,
 	"X_Center_Pix": Image_Info["Width"]/2,
 	"Y_Center_Pix": Image_Info["Height"]/2,
-	"X_Ref_Pix": X_Ref_Pix,
-	"Y_Ref_Pix": Y_Ref_Pix,
-	"X_Ref": X_Ref,
-	"Y_Ref": Y_Ref,
+	"X_Ref_Pix": round(X_Ref_Pix,0),
+	"Y_Ref_Pix": round(Y_Ref_Pix,0),
+	"X_Ref": round(X_Ref,1 ),
+	"Y_Ref": round(Y_Ref,1),
 	"Centering_Accuracy": Centering_Accuracy,
 	}
 	
@@ -1291,46 +1300,49 @@ Output_Simple_Data_CSV_Path = Generate_Unique_Filepath(Output_Dir, Function_Name
 with open(Output_Data_CSV_Path, 'r') as Input_File:
 	Reader = csv.reader(Input_File, delimiter=',', lineterminator='\n')
 	Header = next(Reader)
+	Selected_Columns = [0, 1, 2, 4, 13, 14, 15, 16, 29, 30, 31, 32, 33, 34, 35, 36, 39]
+
 #0.  Filename
 #1.  Channel_Nb
 #2.  Channel_Name
 #3.  Channel_Wavelength_EM
-#4.  Objective_NA
-#5.  Objective_Immersion
-#6.  Gaussian_Blur
-#7.  Gaussian_Sigma
-#8.  Binning_Method
-#9.  BatchMode
-#10. Save_Individual_Files
-#11. ProlixMode
-#12. Intensity_Min
-#13. Intensity_Max
-#14. Intensity_Mean
-#15. Intensity_Std_Dev
-#16. Intensity_Median
-#17. Intensity_Mode
-#18. Width_Pix
-#19. Height_Pix
-#20. Bit_Depth
-#21. Pixel_Width
-#22. Pixel_Height
-#23. Pixel_Depth
-#24. Space_Unit
-#25. Space_Unit_Std
-#26. Calibration_Status
-#27. Std_Dev
-#28. Uniformity_Std
-#29. Uniformity_Percentile
-#30. CV
-#31. Uniformity_CV
-#32. X_Center_Pix
-#33. Y_Center_Pix
-#34. X_Ref_Pix
-#35. Y_Ref_Pix
-#36. X_Ref
-#37. Y_Ref
-#38. Centering_Accuracy
-	Selected_Columns = list(range(0, 3)) + [12, 13, 14, 15, 28,29,30,31,32,33,34,35,38]
+#4.  Objective_Mag
+#5.  Objective_NA
+#6.  Objective_Immersion
+#7.  Gaussian_Blur
+#8.  Gaussian_Sigma
+#9.  Binning_Method
+#10. BatchMode
+#11. Save_Individual_Files
+#12. ProlixMode
+#13. Intensity_Min
+#14. Intensity_Max
+#15. Intensity_Mean
+#16. Intensity_Std_Dev
+#17. Intensity_Median
+#18. Intensity_Mode
+#19. Width_Pix
+#20. Height_Pix
+#21. Bit_Depth
+#22. Pixel_Width
+#23. Pixel_Height
+#24. Pixel_Depth
+#25. Space_Unit
+#26. Space_Unit_Std
+#27. Calibration_Status
+#28. Std_Dev
+#29. Uniformity_Std
+#30. Uniformity_Percentile
+#31. CV
+#32. Uniformity_CV
+#33. X_Center_Pix
+#34. Y_Center_Pix
+#35. X_Ref_Pix
+#36. Y_Ref_Pix
+#37. X_Ref
+#38. Y_Ref
+#39. Centering_Accuracy
+
 	Selected_Header = [Header[i] for i in Selected_Columns]
 	with open(Output_Simple_Data_CSV_Path, 'w') as Output_File:
 		CSV_Writer = csv.writer(Output_File, delimiter = ',', lineterminator = '\n')
