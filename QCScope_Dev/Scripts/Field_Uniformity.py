@@ -83,6 +83,7 @@ Settings_Templates_List={
 	},
 
 "Microscope_Settings_Template": {
+	"Field_Uniformity.Microscope_Objective_Mag": "5x",
 	"Field_Uniformity.Microscope_Objective_NA": 1.0,
 	"Field_Uniformity.Microscope_Objective_Immersion": "Air",
 	"Field_Uniformity.Microscope_Channel_Names": ["DAPI", "Alexa488", "Alexa555", "Alexa647", "Alexa730","Alexa731","Alexa732","Alexa733"],
@@ -296,6 +297,7 @@ def Get_Image_Info(imp):
 # Get Image Metadata
 # Return Channel_Names_Metadata (list of channel Names as strings)
 # Channel_WavelengthsEM_Metadata a list of Integer
+#Objective_Mag_Metadata a string
 # Objective_NA_Metadata a floating
 # Objective_Immersion_Metadata a string
 def Get_Metadata(imp):
@@ -328,10 +330,11 @@ def Get_Metadata(imp):
 					Channel_WavelengthsEM_Metadata.append(0)
 			# Check if metadata contains objective and instrument information
 			if Metadata.getInstrumentCount() > 0 and Metadata.getObjectiveCount(0) > 0:
+				Objective_Magnification_Metadata = str(int(Metadata.getObjectiveNominalMagnification(0,0)))+"x"
 				Objective_NA_Metadata = float(Metadata.getObjectiveLensNA(0, 0))
 				Objective_Immersion_Metadata = str(Metadata.getObjectiveImmersion(0, 0))
 				Prolix_Message("Getting Metadata for: " + Image_Name + ". Done.")
-				return Channel_Names_Metadata, Channel_WavelengthsEM_Metadata, Objective_NA_Metadata, Objective_Immersion_Metadata
+				return Channel_Names_Metadata, Channel_WavelengthsEM_Metadata, Objective_Magnification_Metadata, Objective_NA_Metadata, Objective_Immersion_Metadata
 			else:
 				IJ.log(Image_Name+" does not contain metadata. Proceeding with information from Preferences...")
 				return None, None, None, None
@@ -474,11 +477,13 @@ def Process_Image_Batch(imp, Data_All_Files, Processed_Images_List):
 	Microscope_Settings_Stored = Read_Preferences(Settings_Templates_List["Microscope_Settings_Template"])
 	
 	# Trying to get some metadata
-	Channel_Names_Metadata, Channel_WavelengthsEM_Metadata, Objective_NA_Metadata, Objective_Immersion_Metadata = Get_Metadata(imp)
+	Channel_Names_Metadata, Channel_WavelengthsEM_Metadata, Objective_Mag_Metadata, Objective_NA_Metadata, Objective_Immersion_Metadata = Get_Metadata(imp)
 	
 	# Check for presence of metadata and compare it with stored preferences
 	Batch_Message = ""
-	if Channel_Names_Metadata or Channel_Names_Metadata or Objective_NA_Metadata or Objective_Immersion_Metadata:
+	if Channel_Names_Metadata or Channel_Names_Metadata or Objective_Mag_Metadata or Objective_NA_Metadata or Objective_Immersion_Metadata:
+		if str(Objective_Mag_Metadata) != str(Microscope_Settings_Stored["Field_Uniformity.Microscope_Objective_Mag"]):
+			Batch_Message = Batch_Message + "Objective Magnification is different. Metadata: " + str(Objective_Mag_Metadata) + ". Preferences: " + str(Microscope_Settings_Stored["Field_Uniformity.Microscope_Objective_Mag"]) + "."
 		
 		if float(Objective_NA_Metadata) != float(Microscope_Settings_Stored["Field_Uniformity.Microscope_Objective_NA"]):
 			Batch_Message = Batch_Message + "Objective NA is different. Metadata: " + str(Objective_NA_Metadata) + ". Preferences: " + str(Microscope_Settings_Stored["Field_Uniformity.Microscope_Objective_NA"]) + "."
@@ -487,12 +492,12 @@ def Process_Image_Batch(imp, Data_All_Files, Processed_Images_List):
 			Batch_Message = Batch_Message + "\n" + "Objective Immersion is different. Metadata: " + str(Objective_Immersion_Metadata) + ". Preferences: " + str(Microscope_Settings_Stored["Field_Uniformity.Microscope_Objective_Immersion"]) + "."
 		
 		if Nb_Channels > len(Microscope_Settings_Stored["Field_Uniformity.Microscope_Channel_Names"]):
-			Batch_Message = Batch_Message + "\n" + "Nb of Channels do not match.\nImage: " + str(Nb_Channels) + ". Preferences: " + str(len(Microscope_Settings_Stored["Field_Uniformity.Microscope_Channel_Names"])) + "."
+			Batch_Message = Batch_Message + "\n" + "Nb of Channels do not match. Image: " + str(Nb_Channels) + ". Preferences: " + str(len(Microscope_Settings_Stored["Field_Uniformity.Microscope_Channel_Names"])) + "."
 		else: # Nb of Channels is sufficient check Matching values
 			if Channel_Names_Metadata != Microscope_Settings_Stored["Field_Uniformity.Microscope_Channel_Names"][:Nb_Channels]:
-				Batch_Message = Batch_Message + "\n" + "Channel Names are different:\nMetadata: " + ", ".join(Channel_Names_Metadata)+"\nPreferences: " + ", ".join(Microscope_Settings_Stored["Field_Uniformity.Microscope_Channel_Names"][:Nb_Channels]) + "."
+				Batch_Message = Batch_Message + "\n" + "Channel Names are different: Metadata: " + ", ".join(Channel_Names_Metadata)+". Preferences: " + ", ".join(Microscope_Settings_Stored["Field_Uniformity.Microscope_Channel_Names"][:Nb_Channels]) + "."
 			if Channel_WavelengthsEM_Metadata != Microscope_Settings_Stored["Field_Uniformity.Microscope_Channel_WavelengthsEM"][:Nb_Channels]:
-				Batch_Message = Batch_Message + "\n" + "Channel Emission Wavelengths are different:\nMetadata: " + ", ".join(map(str, Channel_WavelengthsEM_Metadata)) + "\nPreferences: " + ", ".join(map(str,Microscope_Settings_Stored["Field_Uniformity.Microscope_Channel_WavelengthsEM"][:Nb_Channels])) + "."
+				Batch_Message = Batch_Message + "\n" + "Channel Emission Wavelengths are different: Metadata: " + ", ".join(map(str, Channel_WavelengthsEM_Metadata)) + ". Preferences: " + ", ".join(map(str,Microscope_Settings_Stored["Field_Uniformity.Microscope_Channel_WavelengthsEM"][:Nb_Channels])) + "."
 		if Batch_Message !="":
 			Batch_Message = "Metadata different from Preferences." + "\n" + Batch_Message
 			IJ.log(Batch_Message)
@@ -529,11 +534,12 @@ def Display_Processing_Dialog(imp, Dialog_Counter, Test_Processing, Batch_Messag
 	Prolix_Message("Displaying Processing Dialog for: " + Image_Name + "...")
 	
 	# Getting Metadata and Stored settings
-	Channel_Names_Metadata, Channel_WavelengthsEM_Metadata, Objective_NA_Metadata, Objective_Immersion_Metadata = Get_Metadata(imp)
+	Channel_Names_Metadata, Channel_WavelengthsEM_Metadata, Objective_Mag_Metadata, Objective_NA_Metadata, Objective_Immersion_Metadata = Get_Metadata(imp)
 	Field_Uniformity_Settings_Stored = Read_Preferences(Settings_Templates_List["Field_Uniformity.Settings_Template"])
 	Microscope_Settings_Stored = Read_Preferences(Settings_Templates_List["Microscope_Settings_Template"])
 
 	# Displaying Metadata in priority and Stored values as fall back
+	Objective_Mag = Objective_Mag_Metadata if Objective_Mag_Metadata is not None and Dialog_Counter == 0 else Microscope_Settings_Stored["Field_Uniformity.Microscope_Objective_Mag"]
 	Objective_NA = Objective_NA_Metadata if Objective_NA_Metadata is not None and Dialog_Counter == 0 else Microscope_Settings_Stored["Field_Uniformity.Microscope_Objective_NA"]
 	Objective_Immersion = Objective_Immersion_Metadata if Objective_Immersion_Metadata and Dialog_Counter == 0 else Microscope_Settings_Stored["Field_Uniformity.Microscope_Objective_Immersion"]
 	Channel_Names = Channel_Names_Metadata if Channel_Names_Metadata and Dialog_Counter == 0 else Microscope_Settings_Stored["Field_Uniformity.Microscope_Channel_Names"]
@@ -549,11 +555,12 @@ def Display_Processing_Dialog(imp, Dialog_Counter, Test_Processing, Batch_Messag
 	
 	
 	# Create a dialog
-	Processing_Dialog = NonBlockingGenericDialog("Uniformity")
+	Processing_Dialog = NonBlockingGenericDialog(Plugin_Name+" "+Function_Name)
 	Processing_Dialog.addMessage(Image_Name)
 	
 	# Microscope Settings section
 	Processing_Dialog.addMessage("=== Microscope Settings ===")
+	Processing_Dialog.addStringField("Objective Mag ({}):".format("Metadata" if Objective_Mag_Metadata and Dialog_Counter == 0 else "Pref"), Objective_Mag, 2)
 	Processing_Dialog.addNumericField("Objective NA ({}):".format("Metadata" if Objective_NA_Metadata and Dialog_Counter == 0 else "Pref"), Objective_NA, 2, 4, "")
 	Processing_Dialog.addRadioButtonGroup("Objective Immersion ({}):".format("Metadata" if Objective_Immersion_Metadata and Dialog_Counter == 0 else "Pref"),
 						 ["Air", "Water", "Oil", "Glycerin", "Silicone"], 1, 6, Objective_Immersion)
@@ -628,6 +635,7 @@ def Display_Processing_Dialog(imp, Dialog_Counter, Test_Processing, Batch_Messag
 		User_Click = "OK" # Flag to continue
 		Microscope_Settings_User = {}
 		Field_Uniformity_User = {}
+		Microscope_Settings_User["Field_Uniformity.Microscope_Objective_Mag"] = Processing_Dialog.getNextString()
 		Microscope_Settings_User["Field_Uniformity.Microscope_Objective_NA"] = Processing_Dialog.getNextNumber()
 		Microscope_Settings_User["Field_Uniformity.Microscope_Objective_Immersion"] = Processing_Dialog.getNextRadioButton()
 		Pixel_Width_User = Processing_Dialog.getNextNumber()
