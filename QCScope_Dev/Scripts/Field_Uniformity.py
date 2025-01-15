@@ -772,7 +772,7 @@ def Measure_Uniformity_All_Ch(imp, Save_File): # Run on all channels.
 	"Gaussian Sigma",
 	"Binning Method",
 	"Batch Mode",
-	"Save Individual CSVs",
+	"Save Individual Files",
 	"Prolix Mode",
 	"Image Min Intensity",
 	"Image Max Intensity",
